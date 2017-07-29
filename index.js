@@ -6,9 +6,11 @@ const commands = {
     const handler = this.handlers.get(data.name);
     if (!handler)
       return this.sendResponseError(data.id, e.nohandler());
+    
     handler(data.req, (err, res) => {
       if (err)
         return this.sendResponseError(data.id, err);
+      
       this.sendResponseSuccess(data.id, res);
     });
   },
@@ -16,9 +18,12 @@ const commands = {
     const callback = this.callbacks.get(data.id);
     if (!callback)
       return this.close(e.unexpectedresponse());
+    
     this.callbacks.delete(data.id);
+    
     if (data.error)
       return callback(new e.SmartTransportError(data.error.code, data.error.message));
+    
     callback(null, data.res);
   },
 };
@@ -33,12 +38,15 @@ class SmartTransport extends EventEmitter {
         if (handler) {
           if (!message.data || typeof message.data != 'object')
             return this.close(e.badmessage());
+          
           return handler.call(this, message.data);
         }
+        
         return this.emit('command', message.cmd, message.data, message.error);
       }
       this.emit('message', message);
     };
+    
     this.onClose = err => {
       this.open = false;
       this.flush(err || e.closed());
@@ -48,6 +56,7 @@ class SmartTransport extends EventEmitter {
     transport.on('message', this.onMessage);
     transport.on('close', this.onClose);
     this.transport = transport;
+    
     this.open = true;
     this.counter = 0;
     this.callbacks = new Map();
@@ -59,7 +68,9 @@ class SmartTransport extends EventEmitter {
     transport.removeListener('message', this.onMessage);
     transport.removeListener('close', this.onClose);
     this.transport = null;
+    
     this.flush(e.detached());
+    
     return transport;
   }
   
@@ -69,6 +80,10 @@ class SmartTransport extends EventEmitter {
   
   command(cmd, data, callback) {
     this.transport.send({ cmd, data }, callback);
+  }
+  
+  error(cmd, error, callback) {
+    this.transport.send({ cmd, error }, callback);
   }
   
   sendResponseSuccess(id, res) {
@@ -92,6 +107,7 @@ class SmartTransport extends EventEmitter {
   request(name, req, callback) {
     if (!this.open)
       return callback(e.closed());
+    
     const id = this.counter++;
     this.callbacks.set(id, callback);
     this.transport.send({
@@ -109,6 +125,7 @@ class SmartTransport extends EventEmitter {
   close(err) {
     if (!this.open)
       return;
+    
     this.open = false;
     this.flush(err || e.closed());
     this.transport.close(err);
